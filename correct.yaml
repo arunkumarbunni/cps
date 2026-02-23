@@ -1,0 +1,217 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create AWS Glue resources
+
+Resources:
+  MyStepFunction:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: FinancialPipelineStateMachine
+      RoleArn: arn:aws:iam::004552773540:role/service-role/StepFunctions-MySM-role-nc39ob3o7
+      DefinitionString:
+        !Sub |
+          {
+            "Comment": "A description of my state machine",
+            "StartAt": "EventBridge PutEvents",
+            "States": {
+              "EventBridge PutEvents": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::events:putEvents",
+                "Parameters": {
+                  "Entries": [
+                    {
+                      "Detail": {
+                        "Message": "Hello from Step Functions!"
+                      },
+                      "DetailType": "Object Created",
+                      "EventBusName": "default",
+                      "Source": "my.financial.pipeline"
+                    }
+                  ]
+                },
+                "Next": "Glue StartJobRun"
+              },
+              "Glue StartJobRun": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                "Parameters": {
+                  "JobName": "transactionsSilver"
+                },
+                "Next": "Glue StartJobRun (1)"
+              },
+              "Glue StartJobRun (1)": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                "Parameters": {
+                  "JobName": "customersSilver"
+                },
+                "Next": "Glue StartJobRun (2)"
+              },
+              "Glue StartJobRun (2)": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                "Parameters": {
+                  "JobName": "financial_frd_gold_layer"
+                },
+                "Next": "StartCrawler"
+              },
+              "StartCrawler": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+                "Parameters": {
+                  "Name": "cps-crawler"
+                },
+                "Next": "SNS Publish"
+              },
+              "SNS Publish": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn": "arn:aws:sns:us-east-1:004552773540:JobDone",
+                  "Message": "Financial Fraud Detection pipelines Completed Successfully."
+                },
+                "End": true
+              }
+            }
+          }
+  TransactionsEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: transactions-trigger-rule
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - AWS API Call via CloudTrail
+        detail:
+          eventSource:
+            - s3.amazonaws.com
+          eventName:
+            - PutObject
+            - CopyObject
+          requestParameters:
+            bucketName:
+              - financial-data-bronze
+            key:
+              - prefix: "transactions/"
+      Targets:
+        - Arn: !GetAtt MyStepFunction.Arn
+          Id: StepFunctionTarget
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GlueJobRolebyCFT
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Provides Glue basic execution permissions
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueS3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::my-capstone-ff-project
+                  - arn:aws:s3:::my-capstone-ff-project/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::financial-data-bronze
+                  - arn:aws:s3:::financial-data-bronze/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::financial-data-silver
+                  - arn:aws:s3:::financial-data-silver/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::financial-data-gold
+                  - arn:aws:s3:::financial-data-gold/*
+
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: cps_database
+        Description: Glue database created via CloudFormation
+
+  GlueCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: cps-crawler
+      Role: !GetAtt GlueJobRole.Arn
+      DatabaseName: !Ref GlueDatabase
+      Targets:
+        S3Targets:
+          - Path: s3://financial-data-gold/location_mismatch_anomalies/
+          - Path: s3://financial-data-gold/behavioural_anomalies/
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: DEPRECATE_IN_DATABASE
+
+  GlueJobGold:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: financial_frd_gold_layer
+      Role: !GetAtt GlueJobRole.Arn
+      Command:
+        Name: glueetl
+        ScriptLocation: s3://my-capstone-ff-project/glue-jobs/financial_frd_gold_layer.py
+        PythonVersion: 3
+      DefaultArguments:
+        "--job-language": python
+        "--TempDir": s3://aws-glue-assets-004552773540-us-east-1/temp/
+      GlueVersion: 5.1
+      MaxCapacity: 2
+      Timeout: 60
+
+  GlueJobCustSilver:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: customersSilver
+      Role: !GetAtt GlueJobRole.Arn
+      Command:
+        Name: glueetl
+        ScriptLocation: s3://my-capstone-ff-project/glue-jobs/customersSilver.py
+        PythonVersion: 3
+      DefaultArguments:
+        "--job-language": python
+        "--TempDir": s3://aws-glue-assets-004552773540-us-east-1/temp/
+      GlueVersion: 5.1
+      MaxCapacity: 2
+      Timeout: 60
+
+  GlueJobTranSilver:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: transactionsSilver
+      Role: !GetAtt GlueJobRole.Arn
+      Command:
+        Name: glueetl
+        ScriptLocation: s3://my-capstone-ff-project/glue-jobs/transactionsSilver.py
+        PythonVersion: 3
+      DefaultArguments:
+        "--job-language": python
+        "--TempDir": s3://aws-glue-assets-004552773540-us-east-1/temp/
+      GlueVersion: 5.1
+      MaxCapacity: 2
+      Timeout: 60
