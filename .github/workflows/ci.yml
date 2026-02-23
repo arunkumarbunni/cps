@@ -9,6 +9,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: arunaws   # 👈 Add this line to use environment secrets
 
     steps:
       - name: Checkout code
