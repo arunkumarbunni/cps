@@ -1,0 +1,32 @@
+name: Deploy Glue Jobs and CFT Template
+
+on:
+  push:
+    tags: [ "v*" ]   # Deploy when a version tag is pushed
+  release:
+    types: [published]   # Or when a release is published
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload Glue job zips to S3
+        run: |
+          aws s3 cp customersSilver.zip s3://my-capstone-ff-project/glue-jobs/customersSilver.zip
+          aws s3 cp financial_frd_gold_layer.zip s3://my-capstone-ff-project/glue-jobs/financial_frd_gold_layer.zip
+          aws s3 cp transactionsSilver.zip s3://my-capstone-ff-project/glue-jobs/transactionsSilver.zip
+
+      - name: Upload CloudFormation template to S3
+        run: |
+          aws s3 cp template.yaml s3://my-capstone-ff-project/cft-yml/correct.yaml
