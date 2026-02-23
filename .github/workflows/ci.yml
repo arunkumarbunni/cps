@@ -30,4 +30,4 @@ jobs:
 
       - name: Upload CloudFormation template to S3
         run: |
-          aws s3 cp template.yaml s3://my-capstone-ff-project/cft-yml/correct.yaml
+          aws s3 cp correct.yaml s3://my-capstone-ff-project/cft-yml/correct.yaml
