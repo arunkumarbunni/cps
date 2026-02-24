@@ -162,12 +162,12 @@ Resources:
                   - arn:aws:s3:::financial-data-bronze
                   - arn:aws:s3:::financial-data-bronze/*
               - Effect: Allow
-                Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
+                Action: [s3:PutObject, s3:GetObject, s3:ListBucket, s3:DeleteObject]
                 Resource:
                   - arn:aws:s3:::financial-data-silver
                   - arn:aws:s3:::financial-data-silver/*
               - Effect: Allow
-                Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
+                Action: [s3:PutObject, s3:GetObject, s3:ListBucket, s3:DeleteObject]
                 Resource:
                   - arn:aws:s3:::financial-data-gold
                   - arn:aws:s3:::financial-data-gold/*
