@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation template to create AWS Glue resources
 
 Resources:
+
+# ==============================
+# Step Function
+# ==============================
+
   MyStepFunction:
     Type: AWS::StepFunctions::StateMachine
     Properties:
@@ -10,7 +15,7 @@ Resources:
       DefinitionString:
         !Sub |
           {
-            "Comment": "A description of my state machine",
+            "Comment": "Financial Fraud Detection Pipeline",
             "StartAt": "EventBridge PutEvents",
             "States": {
               "EventBridge PutEvents": {
@@ -28,25 +33,25 @@ Resources:
                     }
                   ]
                 },
-                "Next": "Glue StartJobRun"
+                "Next": "TransactionsSilver"
               },
-              "Glue StartJobRun": {
+              "TransactionsSilver": {
                 "Type": "Task",
                 "Resource": "arn:aws:states:::glue:startJobRun.sync",
                 "Parameters": {
                   "JobName": "transactionsSilver"
                 },
-                "Next": "Glue StartJobRun (1)"
+                "Next": "CustomersSilver"
               },
-              "Glue StartJobRun (1)": {
+              "CustomersSilver": {
                 "Type": "Task",
                 "Resource": "arn:aws:states:::glue:startJobRun.sync",
                 "Parameters": {
                   "JobName": "customersSilver"
                 },
-                "Next": "Glue StartJobRun (2)"
+                "Next": "GoldLayer"
               },
-              "Glue StartJobRun (2)": {
+              "GoldLayer": {
                 "Type": "Task",
                 "Resource": "arn:aws:states:::glue:startJobRun.sync",
                 "Parameters": {
@@ -60,9 +65,9 @@ Resources:
                 "Parameters": {
                   "Name": "cps-crawler"
                 },
-                "Next": "SNS Publish"
+                "Next": "SNSPublish"
               },
-              "SNS Publish": {
+              "SNSPublish": {
                 "Type": "Task",
                 "Resource": "arn:aws:states:::sns:publish",
                 "Parameters": {
@@ -73,6 +78,36 @@ Resources:
               }
             }
           }
+
+# ==============================
+# EventBridge Role (FIX)
+# ==============================
+
+  EventBridgeStepFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EventBridgeStepFunctionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowStartStepFunction
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: !GetAtt MyStepFunction.Arn
+
+# ==============================
+# EventBridge Rule
+# ==============================
+
   TransactionsEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -96,6 +131,12 @@ Resources:
       Targets:
         - Arn: !GetAtt MyStepFunction.Arn
           Id: StepFunctionTarget
+          RoleArn: !GetAtt EventBridgeStepFunctionRole.Arn
+
+# ==============================
+# Glue IAM Role
+# ==============================
+
   GlueJobRole:
     Type: AWS::IAM::Role
     Properties:
@@ -108,7 +149,6 @@ Resources:
               Service: glue.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        # Provides Glue basic execution permissions
         - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
       Policies:
         - PolicyName: GlueS3AccessPolicy
@@ -116,35 +156,29 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:ListBucket
+                Action: [s3:GetObject, s3:ListBucket]
                 Resource:
                   - arn:aws:s3:::my-capstone-ff-project
                   - arn:aws:s3:::my-capstone-ff-project/*
               - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:ListBucket
+                Action: [s3:GetObject, s3:ListBucket]
                 Resource:
                   - arn:aws:s3:::financial-data-bronze
                   - arn:aws:s3:::financial-data-bronze/*
               - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:ListBucket
+                Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
                 Resource:
                   - arn:aws:s3:::financial-data-silver
                   - arn:aws:s3:::financial-data-silver/*
               - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:ListBucket
+                Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
                 Resource:
                   - arn:aws:s3:::financial-data-gold
                   - arn:aws:s3:::financial-data-gold/*
+
+# ==============================
+# Glue Database
+# ==============================
 
   GlueDatabase:
     Type: AWS::Glue::Database
@@ -153,6 +187,10 @@ Resources:
       DatabaseInput:
         Name: cps_database
         Description: Glue database created via CloudFormation
+
+# ==============================
+# Glue Crawler
+# ==============================
 
   GlueCrawler:
     Type: AWS::Glue::Crawler
@@ -168,6 +206,10 @@ Resources:
         UpdateBehavior: UPDATE_IN_DATABASE
         DeleteBehavior: DEPRECATE_IN_DATABASE
 
+# ==============================
+# Glue Jobs
+# ==============================
+
   GlueJobGold:
     Type: AWS::Glue::Job
     Properties:
@@ -180,7 +222,7 @@ Resources:
       DefaultArguments:
         "--job-language": python
         "--TempDir": s3://aws-glue-assets-004552773540-us-east-1/temp/
-      GlueVersion: 5.1
+      GlueVersion: 5.0
       MaxCapacity: 2
       Timeout: 60
 
@@ -196,7 +238,7 @@ Resources:
       DefaultArguments:
         "--job-language": python
         "--TempDir": s3://aws-glue-assets-004552773540-us-east-1/temp/
-      GlueVersion: 5.1
+      GlueVersion: 5.0
       MaxCapacity: 2
       Timeout: 60
 
@@ -212,6 +254,6 @@ Resources:
       DefaultArguments:
         "--job-language": python
         "--TempDir": s3://aws-glue-assets-004552773540-us-east-1/temp/
-      GlueVersion: 5.1
+      GlueVersion: 5.0
       MaxCapacity: 2
       Timeout: 60
