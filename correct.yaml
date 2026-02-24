@@ -99,7 +99,7 @@ Resources:
   GlueJobRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: GlueJobRolebyCFT
+      RoleName: GlueJobRolebyCFT2
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
