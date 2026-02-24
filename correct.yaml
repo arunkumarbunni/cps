@@ -50,7 +50,7 @@ Resources:
                 "Type": "Task",
                 "Resource": "arn:aws:states:::glue:startJobRun.sync",
                 "Parameters": {
-                  "JobName": "financial_frd_gold_layer"
+                  "JobName": "financial_frd_gold_layerp"
                 },
                 "Next": "StartCrawler"
               },
@@ -171,7 +171,7 @@ Resources:
   GlueJobGold:
     Type: AWS::Glue::Job
     Properties:
-      Name: financial_frd_gold_layer
+      Name: financial_frd_gold_layerp
       Role: !GetAtt GlueJobRole.Arn
       Command:
         Name: glueetl
