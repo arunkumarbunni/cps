@@ -80,58 +80,54 @@ Resources:
           }
 
 # ==============================
-# EventBridge Role (FIX)
+# EventBridge Role (FIXED)
 # ==============================
 
-  EventBridgeStepFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: EventBridgeStepFunctionRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: AllowStartStepFunction
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - states:StartExecution
-                Resource: !GetAtt MyStepFunction.Arn
+EventBridgeStepFunctionRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: EventBridgeStepFunctionRole
+    AssumeRolePolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: events.amazonaws.com
+          Action: sts:AssumeRole
+    Policies:
+      - PolicyName: AllowStartStepFunction
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource: !GetAtt MyStepFunction.Arn
 
 # ==============================
-# EventBridge Rule
+# EventBridge Rule (S3 Direct Events)
 # ==============================
 
-  TransactionsEventRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: transactions-trigger-rule
-      EventPattern:
-        source:
-          - aws.s3
-        detail-type:
-          - Object Created
-        detail:
-          eventSource:
-            - s3.amazonaws.com
-          eventName:
-            - PutObject
-            - CopyObject
-          requestParameters:
-            bucketName:
-              - financial-data-bronze
-            key:
-              - prefix: "transactions/"
-      Targets:
-        - Arn: !GetAtt MyStepFunction.Arn
-          Id: StepFunctionTarget
-          RoleArn: !GetAtt EventBridgeStepFunctionRole.Arn
+TransactionsEventRule:
+  Type: AWS::Events::Rule
+  Properties:
+    Name: transactions-trigger-rule
+    EventPattern:
+      source:
+        - aws.s3
+      detail-type:
+        - Object Created
+      detail:
+        bucket:
+          name:
+            - financial-data-bronze
+        object:
+          key:
+            - prefix: "transactions/"
+    Targets:
+      - Arn: !GetAtt MyStepFunction.Arn
+        Id: StepFunctionTarget
+        RoleArn: !GetAtt EventBridgeStepFunctionRole.Arn
 
 # ==============================
 # Glue IAM Role
