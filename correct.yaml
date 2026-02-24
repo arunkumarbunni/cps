@@ -116,7 +116,7 @@ Resources:
         source:
           - aws.s3
         detail-type:
-          - AWS API Call via CloudTrail
+          - Object Created
         detail:
           eventSource:
             - s3.amazonaws.com
