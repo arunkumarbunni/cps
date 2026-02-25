@@ -1,0 +1,30 @@
+name: Zip and Upload to S3
+
+on:
+  push:
+    tags:
+      - "v*"   # Trigger when a version tag is pushed
+
+jobs:
+  package-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Zip Glue job folder
+        run: |
+          mkdir -p build
+          zip -r build/transactionsSilver.zip transactionsSilver
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp build/transactionsSilver.zip s3://my-capstone-ff-project/
