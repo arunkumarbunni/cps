@@ -250,6 +250,7 @@ Resources:
       DefaultArguments:
         "--job-language": python
         "--TempDir": s3://aws-glue-assets-004552773540-us-east-1/temp/
+        "--extra-py-files": s3://my-capstone-ff-project/dependencies/transactionsSilver_dependencies.zip
       GlueVersion: 5.0
       MaxCapacity: 2
       Timeout: 60

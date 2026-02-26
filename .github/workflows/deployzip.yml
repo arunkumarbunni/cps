@@ -1,13 +1,18 @@
-name: Zip and Upload to S3
+name: Deploy Glue Job to S3
 
 on:
+  # Trigger when a version tag is pushed (e.g., v1.0.0)
   push:
     tags:
-      - "v*"   # Trigger when a version tag is pushed
+      - "v*"
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
 
 jobs:
   package-and-upload:
     runs-on: ubuntu-latest
+    environment: arunaws   # 👈 ensures secrets from the 'arunaws' environment are available
 
     steps:
       - name: Checkout code
@@ -20,11 +25,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Zip Glue job folder
+      # Upload the main Glue job script (.py)
+      - name: Upload Glue job script
+        run: |
+          aws s3 cp transactionsSilver/main.py s3://my-capstone-ff-project/glue-jobs/transactionsSilver.py
+
+      # Package dependencies into a zip
+      - name: Zip Glue job dependencies
         run: |
           mkdir -p build
-          zip -r build/transactionsSilver.zip transactionsSilver
+          zip -r build/transactionsSilver_dependencies.zip transactionsSilver/dependencies
 
-      - name: Upload to S3
+      # Upload dependencies zip to S3
+      - name: Upload dependencies
         run: |
-          aws s3 cp build/transactionsSilver.zip s3://my-capstone-ff-project/
+          aws s3 cp build/transactionsSilver_dependencies.zip s3://my-capstone-ff-project/dependencies/
