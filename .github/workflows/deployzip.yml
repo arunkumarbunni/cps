@@ -31,7 +31,7 @@ jobs:
       - name: Zip Glue job dependencies
         run: |
           mkdir -p build
-          zip -r build/transactionsSilver_dependencies.zip modules utilities
+          zip -r build/transactionsSilver_dependencies.zip transactionsSilver/modules transactionsSilver/utilities
 
       # Upload dependencies zip to S3
       - name: Upload dependencies
