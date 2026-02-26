@@ -27,11 +27,11 @@ jobs:
         run: |
           aws s3 cp transactionsSilver/__main__.py s3://my-capstone-ff-project/glue-jobs/transactionsSilver.py
 
-      # Package dependencies (modules + utilities) into a zip
+      # Package dependencies (modules + utilities) into a zip at root level
       - name: Zip Glue job dependencies
         run: |
           mkdir -p build
-          zip -r build/transactionsSilver_dependencies.zip transactionsSilver/modules transactionsSilver/utilities
+          zip -r build/transactionsSilver_dependencies.zip modules utilities
 
       # Upload dependencies zip to S3
       - name: Upload dependencies
