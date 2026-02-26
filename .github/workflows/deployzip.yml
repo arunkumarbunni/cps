@@ -28,7 +28,7 @@ jobs:
       # Upload the main Glue job script (.py)
       - name: Upload Glue job script
         run: |
-          aws s3 cp transactionsSilver/main.py s3://my-capstone-ff-project/glue-jobs/transactionsSilver.py
+          aws s3 cp transactionsSilver/__main__.py s3://my-capstone-ff-project/glue-jobs/transactionsSilver.py
 
       # Package dependencies into a zip
       - name: Zip Glue job dependencies
